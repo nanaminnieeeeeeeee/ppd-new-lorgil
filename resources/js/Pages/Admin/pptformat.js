@@ -8,8 +8,71 @@ const getOrdinal = (number) => {
   return `${number}th`; // For any other number (4th, 5th, etc.)
 };
 
-// Function to format and generate PowerPoint report
-export const generatePptReport = (provinces, programs) => {
+// Main function to generate the PowerPoint file based on the selected year, quarter, and province filters
+const generatePpt = () => {
+  // Ensure that both year and quarter are selected
+  if (!selectedYear.value || !selectedQuarter.value) {
+    console.error('Please select both year and quarter to generate the report');
+    return;
+  }
+
+  // Check if 'all' provinces are selected
+  if (selectedProvince.value === 'all') {
+    if (!props.provinces.length) {
+      console.error('No provinces available to generate the report');
+      return;
+    }
+
+    if (!props.programs.length) {
+      console.error('No programs available to generate the report');
+      return;
+    }
+
+    // Move Davao City to the top of the provinces list
+    const sortedProvinces = [...props.provinces];
+    const davaoCityIndex = sortedProvinces.findIndex(province => province.col_province.toLowerCase() === 'davao city');
+    
+    if (davaoCityIndex !== -1) {
+      const davaoCity = sortedProvinces.splice(davaoCityIndex, 1)[0];
+      sortedProvinces.unshift(davaoCity);
+    }
+
+    // Prepare the data for generating the report for all provinces
+    const allProvinces = sortedProvinces.map(province => {
+      const groupedCityMunicipalities = province.districts || {};
+      const allCityMunicipalities = Object.values(groupedCityMunicipalities).flatMap(districtGroup => {
+        return districtGroup.cities ? districtGroup.cities : [];
+      });
+
+      return {
+        ...province,
+        cities: allCityMunicipalities
+      };
+    });
+
+    // Generate the report for all provinces
+    generatePptReport(allProvinces, props.programs, selectedYear.value, selectedQuarter.value, 'All_Provinces');
+  } else {
+    // Handle single province selection
+    const groupedCityMunicipalities = selectedProvince.value.districts || {};
+    const allCityMunicipalities = Object.values(groupedCityMunicipalities).flatMap(districtGroup => {
+      return districtGroup.cities ? districtGroup.cities : [];
+    });
+
+    if (!allCityMunicipalities.length) {
+      console.error('No city/municipality data available for the selected province');
+      return;
+    }
+
+    const provinceName = selectedProvince.value.col_province;
+
+    // Generate the report for the selected province
+    generatePptReport([selectedProvince.value], props.programs, selectedYear.value, selectedQuarter.value, provinceName);
+  }
+};
+
+// Function to format and generate PowerPoint report with selectedYear and selectedQuarter filters
+export const generatePptReport = (provinces, programs, selectedYear, selectedQuarter, provinceName) => {
   const pptx = new PptxGenJS();
 
   // Iterate over each province
@@ -39,185 +102,167 @@ export const generatePptReport = (provinces, programs) => {
     const provinceUtilizationSlide = pptx.addSlide();
     provinceUtilizationSlide.background = { path: `${window.location.origin}/ppd-images/ppt-total.png` };
 
-    // Calculate total fund utilized for all cities in the province
-    let totalFundUtilizedPerProvince = 0;
-
-    Object.values(province.districts || {}).forEach(district => {
-      district.cities.forEach(city => {
-        const utilized = city.total_utilization || 0; // Sum the total utilization for each city
-        totalFundUtilizedPerProvince += utilized; // Add to the total fund utilized for the province
-      });
-    });
-
     // Add "TOTAL FUND UTILIZED" for the province
+    const totalFundUtilizedPerProvince = province.total_utilization || 0;
     provinceUtilizationSlide.addText(`TOTAL FUND UTILIZED FOR ${province.col_province.toUpperCase()}`, { 
       x: '-5%', y: '42%', w: '90%', fontSize: 23, bold: true, color: '00072D', fontFace: 'Arial', align: 'center' 
     });
 
-    // Add the calculated total fund utilized for the province
+    // Display total fund utilized for the province
     provinceUtilizationSlide.addText(`₱${totalFundUtilizedPerProvince.toLocaleString()}`, { 
       x: '-10%', y: '52%', w: '90%', fontSize: 50, bold: true, color: '0000FF', fontFace: 'Arial', align: 'center'
     });
 
-   // Create slides for city-level data grouped by districts
-   Object.values(province.districts || {}).forEach((district) => {
-    district.cities.forEach((city) => {
-      // Initialize totals for the city
-      let totalTarget = 0;
-      let totalAllocated = 0;
-    
-      // Slide 3: Physical Target and Fund Allocated for each city
-      const cityTargetSlide = pptx.addSlide();
-      cityTargetSlide.background = { path: `${window.location.origin}/ppd-images/ppt-table.png` };
-    
-      // Add city/municipality and province text
-      cityTargetSlide.addText(`${city.col_citymuni.toUpperCase()}, ${province.col_province.toUpperCase()}`, {
-        x: 0.5,
-        y: 0.5,
-        w: '70%',
-        fontSize: 24,
-        bold: true,
-        color: '000991',
-        fontFace: 'Arial',
-        align: 'center',
-      });
-    
-      // Add "SUMMARY PER PROGRAM" text
-      cityTargetSlide.addText('SUMMARY PER PROGRAM', {
-        x: 0.5,
-        y: 1.0,
-        w: '70%',
-        fontSize: 20,
-        bold: true,
-        color: '000991',
-        fontFace: 'Arial',
-        align: 'center',
-      });
-    
-      // Generate table for Physical Target and Fund Allocated
-      const targetTableData = programs.map((program, index) => {
-        const fillColor = index % 2 === 0 ? 'BDE0FE' : 'DDEFFA';
-        const cityProgram = city.programs.find(p => p.program_name === program.program_name) || {};
-        const target = cityProgram.total_target || 0;
-        const allocated = cityProgram.total_fund_allocated || 0;
-    
-        // Add to the city-level totals
-        totalTarget += parseFloat(target);
-        totalAllocated += parseFloat(allocated);
-    
-        return [
-          { text: program.program_name, options: { fontSize: 10, bold: true, align: 'center', fontFace: 'Arial', fill: fillColor } },
-          { text: target.toString(), options: { fontSize: 10, align: 'center', fontFace: 'Arial', fill: fillColor } },
-          { text: allocated.toLocaleString(), options: { fontSize: 10, align: 'center', fontFace: 'Arial', fill: fillColor } },
+    // Iterate over districts and cities
+    Object.values(province.districts || {}).forEach(district => {
+      district.cities.forEach(city => {
+        // Filter city data based on selectedYear and selectedQuarter
+        const cityPrograms = city.programs.filter(program => {
+          const createdAtDate = new Date(program.created_at); // Parse the created_at field
+          const programYear = createdAtDate.getFullYear();
+          const programQuarter = Math.ceil((createdAtDate.getMonth() + 1) / 3); // Calculate quarter from month
+          return (selectedYear === 'all' || programYear === parseInt(selectedYear)) &&
+                 (selectedQuarter === 'all' || programQuarter === parseInt(selectedQuarter));
+        });
+
+        // Slide 3: Physical Target and Fund Allocated for each city
+        const cityTargetSlide = pptx.addSlide();
+        cityTargetSlide.background = { path: `${window.location.origin}/ppd-images/ppt-table.png` };
+
+        // Add city/municipality and province text
+        cityTargetSlide.addText(`${city.col_citymuni.toUpperCase()}, ${province.col_province.toUpperCase()}`, {
+          x: 0.5,
+          y: 0.5,
+          w: '70%',
+          fontSize: 24,
+          bold: true,
+          color: '000991',
+          fontFace: 'Arial',
+          align: 'center',
+        });
+
+        // Add "SUMMARY PER PROGRAM" text
+        cityTargetSlide.addText('SUMMARY PER PROGRAM', {
+          x: 0.5,
+          y: 1.0,
+          w: '70%',
+          fontSize: 20,
+          bold: true,
+          color: '000991',
+          fontFace: 'Arial',
+          align: 'center',
+        });
+
+        // Generate table for Physical Target and Fund Allocated
+        const targetTableData = programs.map((program, index) => {
+          const fillColor = index % 2 === 0 ? 'BDE0FE' : 'DDEFFA';
+          const cityProgram = cityPrograms.find(p => p.program_id === program.program_id) || {};
+
+          // Check and fetch data correctly for each city
+          const target = cityProgram.total_target || 0;
+          const allocated = cityProgram.total_allocation || 0;
+
+          return [
+            { text: program.program_name, options: { fontSize: 10, bold: true, align: 'center', fontFace: 'Arial', fill: fillColor } },
+            { text: target.toString(), options: { fontSize: 10, align: 'center', fontFace: 'Arial', fill: fillColor } },
+            { text: allocated.toLocaleString(), options: { fontSize: 10, align: 'center', fontFace: 'Arial', fill: fillColor } },
+          ];
+        });
+
+        const totalTarget = city.total_target || 0;
+        const totalAllocated = city.total_allocation || 0;
+
+        const totalRowTarget = [
+          { text: 'Total', options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
+          { text: totalTarget.toString(), options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
+          { text: totalAllocated.toLocaleString(), options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
         ];
-      });
-    
-      // Add the total row to the table data for each city
-      const totalRowTarget = [
-        { text: 'Total', options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
-        { text: totalTarget.toString(), options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
-        { text: totalAllocated.toLocaleString(), options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
-      ];
-    
-      // Add table headers
-      const targetTableHeader = [
-        { text: 'Program', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
-        { text: 'Physical Target', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
-        { text: 'Fund Allocated (Php)', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
-      ];
-    
-      // Add the table to the slide with program-wise and total rows
-      cityTargetSlide.addTable([targetTableHeader, ...targetTableData, totalRowTarget], {
-        x: 1.0,
-        y: 1.5,
-        w: 8,
-        h: 3.5,
-        colW: [2.5, 2, 2],
-        border: { pt: 0.5, color: 'FFFFFF' },
-        fontSize: 12,
-        fontFace: 'Arial',
-      });
-    
-      // Now you can add a similar process for Slide 4 to handle Physical Served and Fund Utilized totals
-    
-      // Initialize totals for the city for the utilization table
-      let totalServed = 0;
-      let totalUtilized = 0;
-    
-      // Slide 4: Physical Served and Fund Utilized for each city
-      const cityUtilizationSlide = pptx.addSlide();
-      cityUtilizationSlide.background = { path: `${window.location.origin}/ppd-images/ppt-table.png` };
-    
-      // Add city/municipality and province text
-      cityUtilizationSlide.addText(`${city.col_citymuni.toUpperCase()}, ${province.col_province.toUpperCase()}`, {
-        x: 0.5,
-        y: 0.5,
-        w: '70%',
-        fontSize: 24,
-        bold: true,
-        color: '000991',
-        fontFace: 'Arial',
-        align: 'center',
-      });
-    
-      // Add "SUMMARY PER PROGRAM" text
-      cityUtilizationSlide.addText('SUMMARY PER PROGRAM', {
-        x: 0.5,
-        y: 1.0,
-        w: '70%',
-        fontSize: 20,
-        bold: true,
-        color: '000991',
-        fontFace: 'Arial',
-        align: 'center',
-      });
-    
-      // Generate table for Physical Served and Fund Utilized
-      const utilizationTableData = programs.map((program, index) => {
-        const fillColor = index % 2 === 0 ? 'BDE0FE' : 'DDEFFA';
-        const cityProgram = city.programs.find(p => p.program_name === program.program_name) || {};
-        const served = cityProgram.total_physical_served || 0;
-        const utilized = cityProgram.total_fund_utilized || 0;
-    
-        // Add to the city-level totals
-        totalServed += parseFloat(served);
-        totalUtilized += parseFloat(utilized);
-    
-        return [
-          { text: program.program_name, options: { fontSize: 10, bold: true, align: 'center', fontFace: 'Arial', fill: fillColor } },
-          { text: served.toString(), options: { fontSize: 10, align: 'center', fontFace: 'Arial', fill: fillColor } },
-          { text: utilized.toLocaleString(), options: { fontSize: 10, align: 'center', fontFace: 'Arial', fill: fillColor } },
+
+        const targetTableHeader = [
+          { text: 'Program', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
+          { text: 'Physical Target', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
+          { text: 'Fund Allocated (Php)', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
         ];
-      });
-    
-      // Add the total row to the table data for each city
-      const totalRowUtilization = [
-        { text: 'Total', options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
-        { text: totalServed.toString(), options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
-        { text: totalUtilized.toLocaleString(), options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
-      ];
-    
-      // Add table headers for utilization
-      const utilizationTableHeader = [
-        { text: 'Program', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
-        { text: 'Physical Served', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
-        { text: 'Fund Utilized (Php)', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
-      ];
-    
-      // Add the table to the slide with program-wise and total rows
-      cityUtilizationSlide.addTable([utilizationTableHeader, ...utilizationTableData, totalRowUtilization], {
-        x: 1.0,
-        y: 1.5,
-        w: 8,
-        h: 3.5,
-        colW: [2.5, 2, 2],
-        border: { pt: 0.5, color: 'FFFFFF' },
-        fontSize: 12,
-        fontFace: 'Arial',
+
+        // Add the table to the slide
+        cityTargetSlide.addTable([targetTableHeader, ...targetTableData, totalRowTarget], {
+          x: 1.0,
+          y: 1.5,
+          w: 8,
+          h: 3.5,
+          colW: [2.5, 2, 2],
+          border: { pt: 0.5, color: 'FFFFFF' },
+          fontSize: 12,
+          fontFace: 'Arial',
+        });
+
+        // Physical Served and Fund Utilized table for each city
+        const totalServed = city.total_physical || 0;
+        const totalUtilized = city.total_utilization || 0;
+
+        const cityUtilizationSlide = pptx.addSlide();
+        cityUtilizationSlide.background = { path: `${window.location.origin}/ppd-images/ppt-table.png` };
+
+        cityUtilizationSlide.addText(`${city.col_citymuni.toUpperCase()}, ${province.col_province.toUpperCase()}`, {
+          x: 0.5,
+          y: 0.5,
+          w: '70%',
+          fontSize: 24,
+          bold: true,
+          color: '000991',
+          fontFace: 'Arial',
+          align: 'center',
+        });
+
+        cityUtilizationSlide.addText('SUMMARY PER PROGRAM', {
+          x: 0.5,
+          y: 1.0,
+          w: '70%',
+          fontSize: 20,
+          bold: true,
+          color: '000991',
+          fontFace: 'Arial',
+          align: 'center',
+        });
+
+        const utilizationTableData = programs.map((program, index) => {
+          const fillColor = index % 2 === 0 ? 'BDE0FE' : 'DDEFFA';
+          const cityProgram = cityPrograms.find(p => p.program_id === program.program_id) || {};
+          const served = cityProgram.total_physical || 0;
+          const utilized = cityProgram.total_utilization || 0;
+
+          return [
+            { text: program.program_name, options: { fontSize: 10, bold: true, align: 'center', fontFace: 'Arial', fill: fillColor } },
+            { text: served.toString(), options: { fontSize: 10, align: 'center', fontFace: 'Arial', fill: fillColor } },
+            { text: utilized.toLocaleString(), options: { fontSize: 10, align: 'center', fontFace: 'Arial', fill: fillColor } },
+          ];
+        });
+
+        const totalRowUtilization = [
+          { text: 'Total', options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
+          { text: totalServed.toString(), options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
+          { text: totalUtilized.toLocaleString(), options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
+        ];
+
+        const utilizationTableHeader = [
+          { text: 'Program', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
+          { text: 'Physical Served', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
+          { text: 'Fund Utilized (Php)', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
+        ];
+
+        cityUtilizationSlide.addTable([utilizationTableHeader, ...utilizationTableData, totalRowUtilization], {
+          x: 1.0,
+          y: 1.5,
+          w: 8,
+          h: 3.5,
+          colW: [2.5, 2, 2],
+          border: { pt: 0.5, color: 'FFFFFF' },
+          fontSize: 12,
+          fontFace: 'Arial',
+        });
       });
     });
-    
-  });
+
     // Last Slide: Summary of all Cities in the Province (Target and Allocation)
     const summarySlide1 = pptx.addSlide();
     summarySlide1.background = { path: `${window.location.origin}/ppd-images/ppt-table.png` };
@@ -226,7 +271,6 @@ export const generatePptReport = (provinces, programs) => {
       x: 0.5,
       y: 0.5, w: '70%', fontSize: 24, bold: true, color: '000991', fontFace: 'Arial', align: 'center'
     });
-
 
     const summaryTableHeader1 = [
       [
@@ -274,15 +318,15 @@ export const generatePptReport = (provinces, programs) => {
     ]);
 
     summarySlide1.addTable([...summaryTableHeader1, ...rows1], {
-      x: 1.0, // Adjust x-position as needed
-      y: 1.0, // Adjust y-position as needed
-      w: 7,   // Reduced width of the entire table
-      h: 3.5, // Height of the table
-      colW: [2.5, 2, 2], // Adjust column widths: [Municipality, Physical Target, Fund Allocated]
-      rowH: 0.1, // Adjust row height
-      fontSize: 14, 
-      border: { pt: 1, color: 'FFFFFF' }, 
-      fill: { color: 'FFFFFF' } // Optional: adjust fill for table background
+      x: 1.0,
+      y: 1.0,
+      w: 7,
+      h: 3.5,
+      colW: [2.5, 2, 2],
+      rowH: 0.1,
+      fontSize: 14,
+      border: { pt: 1, color: 'FFFFFF' },
+      fill: { color: 'FFFFFF' }
     });
 
     // Similar for utilization summary
@@ -340,18 +384,19 @@ export const generatePptReport = (provinces, programs) => {
     ]);
 
     summarySlide2.addTable([...summaryTableHeader2, ...rows2], {
-      x: 1.0, // Adjust x-position as needed
-      y: 1.0, // Adjust y-position as needed
-      w: 7,   // Reduced width of the entire table
-      h: 3.5, // Height of the table
-      colW: [2.5, 2, 2], // Adjust column widths: [Municipality, Physical Target, Fund Allocated]
-      rowH: 0.1, // Adjust row height
-      fontSize: 14, 
-      border: { pt: 1, color: 'FFFFFF' }, 
-      fill: { color: 'FFFFFF' } // Optional: adjust fill for table background
+      x: 1.0,
+      y: 1.0,
+      w: 7,
+      h: 3.5,
+      colW: [2.5, 2, 2],
+      rowH: 0.1,
+      fontSize: 14,
+      border: { pt: 1, color: 'FFFFFF' },
+      fill: { color: 'FFFFFF' }
     });
   });
 
-  // Save the PowerPoint file
-  pptx.writeFile({ fileName: 'Province_Brief_Report by Area.pptx' });
+  // Save the PowerPoint file with the province name in the file name
+  const fileName = `${provinceName}_Brief_Report_By_Area.pptx`;
+  pptx.writeFile({ fileName });
 };
