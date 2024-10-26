@@ -137,7 +137,9 @@ const handleSidebarExpanded = (expanded) => {
           <!-- Table body -->
           <tbody class="divide-y divide-gray-200">
             <tr v-for="log in paginatedLogs" :key="log.id" class="hover:bg-blue-50 transition-colors duration-200">
-              <td class="w-1/12 px-4 py-3 text-gray-800 font-semibold">{{ new Date(log.created_at).toLocaleDateString() }}</td>
+              <td class="w-1/12 px-4 py-3 text-gray-800 font-semibold">
+  {{ new Date(log.created_at).toLocaleString() }}
+</td>
               <td class="w-2/12 px-4 py-3 text-gray-800">{{ log.user.first_name }} {{ log.user.middle_name }} {{ log.user.last_name }}</td>
               <td class="w-2/12 px-4 py-3 text-gray-800 capitalize">{{ log.action }} {{ log.type }}</td>
               <td class="w-2/12 px-4 py-3 text-gray-800">

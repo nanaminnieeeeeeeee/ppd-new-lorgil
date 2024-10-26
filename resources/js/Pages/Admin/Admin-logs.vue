@@ -172,7 +172,9 @@ onMounted(() => {
            </thead>
            <tbody class="divide-y divide-gray-200">
              <tr v-for="log in paginatedLogs" :key="log.id" class="hover:bg-blue-50 transition-colors duration-200">
-               <td class="w-1/12 px-6 py-3 text-gray-800 font-semibold">{{ new Date(log.created_at).toLocaleDateString() }}</td>
+              <td class="w-1/12 px-6 py-3 text-gray-800 font-semibold">
+  {{ new Date(log.created_at).toLocaleString() }}
+</td>
                <td class="w-1/6 px-6 py-3 text-gray-800 whitespace-nowrap overflow-hidden text-ellipsis">{{ log.user.first_name }} {{ log.user.middle_name }} {{ log.user.last_name }} {{ log.user.suffix }}</td>
                <td class="w-4/6 px-6 py-3 text-gray-800">
       <span v-if="log.action === 'role_change'">
@@ -247,7 +249,9 @@ onMounted(() => {
          <tbody class="divide-y divide-gray-200">
            <template v-if="paginatedClientLogs.length">
              <tr v-for="log in paginatedClientLogs" :key="log.id" class="hover:bg-blue-50 transition-colors duration-200">
-               <td class="w-1/12 px-3 py-3 text-gray-800 font-semibold">{{ new Date(log.created_at).toLocaleDateString() }}</td>            
+              <td class="w-1/12 px-3 py-3 text-gray-800 font-semibold">
+  {{ new Date(log.created_at).toLocaleString() }}
+</td>           
                <td class="w-2/6 px-6 py-3 text-gray-800">{{ log.program ? log.program.name : 'Unknown Program' }}</td> 
                <td class="w-3/12 px-6 py-3 text-gray-800">{{ log.user.first_name }} {{ log.user.middle_name }} {{ log.user.last_name }} {{ log.user.suffix }} </td>             
                <td class="w-4/12 px-4 py-3 text-gray-800">{{ log.action }} {{ log.type }} for
