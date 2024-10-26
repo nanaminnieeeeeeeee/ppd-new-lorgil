@@ -32,11 +32,11 @@ class CLogController extends Controller
                 if ($log->type === 'allocation' && $log->allocation) {
                     $provinceName = $this->getProvinceName($log->allocation->province);
                     $cityMunicipalityName = $this->getCityMunicipalityName($log->allocation->city_municipality);
-                    $originalDate = $log->allocation->created_at->toDateString(); // Get original date from allocation
+                    $originalDate = $log->allocation->created_at->toDateTimeString(); // Get original date from allocation
                 } elseif ($log->utilization) {
                     $provinceName = $this->getProvinceName($log->utilization->province);
                     $cityMunicipalityName = $this->getCityMunicipalityName($log->utilization->city_municipality);
-                    $originalDate = $log->utilization->created_at->toDateString(); // Get original date from utilization
+                    $originalDate = $log->utilization->created_at->toDateTimeString(); // Get original date from utilization
                 } else {
                     $provinceName = 'Unknown Province';
                     $cityMunicipalityName = 'Unknown City/Municipality';
@@ -130,6 +130,8 @@ class CLogController extends Controller
             'record_id' => $utilization->id,
             'description' => "Edited utilization for " . $this->getCityMunicipalityName($request->city_municipality) . ", " . $this->getProvinceName($request->province),
             'original_date' => $utilization->created_at->toDateString(),
+            'created_at' => now(), // Set explicitly to current time
+            'updated_at' => now(), // Set explicitly to current time
             'program' => $programId,  // Save the program ID from the utilization
         ]);
 

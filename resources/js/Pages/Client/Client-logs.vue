@@ -143,9 +143,9 @@ const handleSidebarExpanded = (expanded) => {
               <td class="w-2/12 px-4 py-3 text-gray-800">{{ log.user.first_name }} {{ log.user.middle_name }} {{ log.user.last_name }}</td>
               <td class="w-2/12 px-4 py-3 text-gray-800 capitalize">{{ log.action }} {{ log.type }}</td>
               <td class="w-2/12 px-4 py-3 text-gray-800">
-                <span v-if="log.action === 'edited'">{{ log.original_date }}</span>
-                <span v-else class="justify-center align-center">-</span>
-              </td>
+  <span v-if="log.action === 'edited'">{{ new Date(log.original_date).toLocaleString() }}</span>
+  <span v-else class="justify-center align-center">-</span>
+</td>
               <td class="w-4/12 px-4 py-3 text-gray-800">{{ log.city_municipality }}<span v-if="log.city_municipality && log.province">, </span>{{ log.province }}</td>
             </tr>
           </tbody>
