@@ -59,13 +59,16 @@ class AllocationController extends Controller
         throw ValidationException::withMessages(['program' => 'You cannot submit an allocation for a restricted program.']);
     }
 
-    // Fetch PSGC codes for province and city_municipality
-    $province = Province::where('col_province', $request->province)->first();
-    $city_municipality = CityMuni::where('col_citymuni', $request->city_municipality)->first();
+   // Fetch PSGC codes for province and city_municipality based on both the province and city name
+$province = Province::where('col_province', $request->province)->first();
 
-    if (!$province || !$city_municipality) {
-        throw ValidationException::withMessages(['location' => 'Invalid province or city/municipality selected.']);
-    }
+$city_municipality = CityMuni::where('col_citymuni', $request->city_municipality)
+    ->where('province_psgc', $province->psgc) // Make sure the city is linked to the correct province
+    ->first();
+
+if (!$province || !$city_municipality) {
+    throw ValidationException::withMessages(['location' => 'Invalid province or city/municipality selected.']);
+}
 
     // Check if allocation already exists for the year
     $currentYear = Carbon::now()->year;
@@ -125,18 +128,19 @@ public function update(Request $request, Allocation $allocation)
         return back()->withErrors(['program' => 'You cannot update an allocation for a restricted program.'])->withInput();
     }
 
-    // Fetch the PSGC codes for province and city_municipality based on names
-    $province = Province::where('col_province', $request->province)->first();
-    $city_municipality = CityMuni::where('col_citymuni', $request->city_municipality)->first();
+   // Fetch the PSGC codes for province and city_municipality based on names
+$province = Province::where('col_province', $request->province)->first();
+$city_municipality = CityMuni::where('col_citymuni', $request->city_municipality)
+    ->where('province_psgc', $province->psgc) // Ensure the city is linked to the correct province
+    ->first();
 
-    if (!$province || !$city_municipality) {
-        \Log::error('Invalid location selection:', [
-            'province' => $request->province,
-            'city_municipality' => $request->city_municipality
-        ]);
-        return back()->withErrors(['location' => 'Invalid province or city/municipality selected.'])->withInput();
-    }
-
+if (!$province || !$city_municipality) {
+    \Log::error('Invalid location selection:', [
+        'province' => $request->province,
+        'city_municipality' => $request->city_municipality
+    ]);
+    return back()->withErrors(['location' => 'Invalid province or city/municipality selected.'])->withInput();
+}
      // Check if allocation already exists for the year, excluding the current allocation being edited
      $currentYear = Carbon::now()->year;
      $existingAllocation = Allocation::where('province', $province->psgc)
@@ -250,24 +254,28 @@ public function checkExistingAllocation(Request $request)
     // Log incoming request for debugging
     \Log::info('Check existing allocation request:', $request->all());
 
-    // Fetch the province PSGC code
-    $province = Province::where('col_province', $request->province)->first();
-    $city_municipality = CityMuni::where('col_citymuni', $request->city_municipality)->first();
+   // Fetch the province PSGC code
+$province = Province::where('col_province', $request->province)->first();
+$city_municipality = CityMuni::where('col_citymuni', $request->city_municipality)
+    ->where('province_psgc', $province->psgc) // Ensure the city is in the correct province
+    ->first();
+
     $program = Program::where('name', $request->program)->first();
 
-    // Check if required fields are valid
-    if (!$province || !$city_municipality || !$program) {
-        return response()->json(['exists' => false, 'error' => 'Invalid province, city/municipality, or program selected.'], 400);
-    }
+   // Check if required fields are valid
+if (!$province || !$city_municipality || !$program) {
+    return response()->json(['exists' => false, 'error' => 'Invalid province, city/municipality, or program selected.'], 400);
+}
 
-    // Check if an allocation already exists for this year
-    $currentYear = Carbon::now()->year;
-    $existingAllocation = Allocation::where('province', $province->psgc)
-        ->where('city_municipality', $city_municipality->psgc)
-        ->where('program', $program->id)
-        ->whereYear('created_at', $currentYear)
-        ->exists();
 
+   // Check if an allocation already exists for this year
+$currentYear = Carbon::now()->year;
+$existingAllocation = Allocation::where('province', $province->psgc)
+    ->where('city_municipality', $city_municipality->psgc)
+    ->where('program', $program->id)
+    ->whereYear('created_at', $currentYear)
+    ->exists();
+    
     if ($existingAllocation) {
         return response()->json(['exists' => true, 'error' => 'An allocation for this province, city/municipality, and program has already been submitted this year.']);
     }

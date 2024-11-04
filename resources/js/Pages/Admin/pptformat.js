@@ -8,6 +8,20 @@ const getOrdinal = (number) => {
   return `${number}th`; // For any other number (4th, 5th, etc.)
 };
 
+// Function to get the month range for a given quarter
+const getQuarterMonthRange = (quarter, year) => {
+  if (quarter === 'all') {
+    return `Year ${year}`;
+  }
+  const quarters = {
+    1: 'January - March',
+    2: 'April - June',
+    3: 'July - September',
+    4: 'October - December',
+  };
+  return `${quarters[quarter]} ${year}`;
+};
+
 // Main function to generate the PowerPoint file based on the selected year, quarter, and province filters
 const generatePpt = () => {
   // Ensure that both year and quarter are selected
@@ -91,10 +105,9 @@ export const generatePptReport = (provinces, programs, selectedYear, selectedQua
       x: '-10%', y: '52%', w: '100%', fontSize: 28, bold: true, color: '00072D', fontFace: 'Arial', align: 'center' 
     });
 
-    // Add current date for the slide in long format
-    const options = { year: 'numeric', month: 'long', day: 'numeric' };
-    const currentDate = new Date().toLocaleDateString(undefined, options);
-    firstSlide.addText(`As of ${currentDate}`, { 
+    // Add selected quarter and year range for the slide
+    const quarterMonthRange = getQuarterMonthRange(selectedQuarter, selectedYear);
+    firstSlide.addText(`As of ${quarterMonthRange}`, { 
       x: '-10%', y: '62%', w: '100%', fontSize: 22, bold: true, color: '0000FF', fontFace: 'Arial', align: 'center' 
     });
 
@@ -116,16 +129,7 @@ export const generatePptReport = (provinces, programs, selectedYear, selectedQua
     // Iterate over districts and cities
     Object.values(province.districts || {}).forEach(district => {
       district.cities.forEach(city => {
-        // Filter city data based on selectedYear and selectedQuarter
-        const cityPrograms = city.programs.filter(program => {
-          const createdAtDate = new Date(program.created_at); // Parse the created_at field
-          const programYear = createdAtDate.getFullYear();
-          const programQuarter = Math.ceil((createdAtDate.getMonth() + 1) / 3); // Calculate quarter from month
-          return (selectedYear === 'all' || programYear === parseInt(selectedYear)) &&
-                 (selectedQuarter === 'all' || programQuarter === parseInt(selectedQuarter));
-        });
-
-        // Slide 3: Physical Target and Fund Allocated for each city
+        // Slide for Physical Target and Fund Allocated for each city
         const cityTargetSlide = pptx.addSlide();
         cityTargetSlide.background = { path: `${window.location.origin}/ppd-images/ppt-table.png` };
 
@@ -153,24 +157,41 @@ export const generatePptReport = (provinces, programs, selectedYear, selectedQua
           align: 'center',
         });
 
-        // Generate table for Physical Target and Fund Allocated
-        const targetTableData = programs.map((program, index) => {
+        // Initialize table data array
+        const targetTableData = [];
+        const utilizationTableData = [];
+        
+        // Iterate over programs to populate the table data
+        programs.forEach((program, index) => {
+          // Attempt to find matching program data for the city
+          const cityProgram = city.programs?.find(p => p.program_id === program.program_id);
+
+          // Use default values if no data is found
+          const target = cityProgram ? cityProgram.total_target : 0;
+          const allocated = cityProgram ? cityProgram.total_allocation : 0;
+          const physicalServed = cityProgram ? cityProgram.total_physical : 0;
+          const utilized = cityProgram ? cityProgram.total_utilization : 0;
+
           const fillColor = index % 2 === 0 ? 'BDE0FE' : 'DDEFFA';
-          const cityProgram = cityPrograms.find(p => p.program_id === program.program_id) || {};
 
-          // Check and fetch data correctly for each city
-          const target = cityProgram.total_target || 0;
-          const allocated = cityProgram.total_allocation || 0;
-
-          return [
+          targetTableData.push([
             { text: program.program_name, options: { fontSize: 10, bold: true, align: 'center', fontFace: 'Arial', fill: fillColor } },
             { text: target.toString(), options: { fontSize: 10, align: 'center', fontFace: 'Arial', fill: fillColor } },
             { text: allocated.toLocaleString(), options: { fontSize: 10, align: 'center', fontFace: 'Arial', fill: fillColor } },
-          ];
+          ]);
+
+          utilizationTableData.push([
+            { text: program.program_name, options: { fontSize: 10, bold: true, align: 'center', fontFace: 'Arial', fill: fillColor } },
+            { text: physicalServed.toString(), options: { fontSize: 10, align: 'center', fontFace: 'Arial', fill: fillColor } },
+            { text: utilized.toLocaleString(), options: { fontSize: 10, align: 'center', fontFace: 'Arial', fill: fillColor } },
+          ]);
         });
 
+        // Add a total row for the city's target and allocation
         const totalTarget = city.total_target || 0;
         const totalAllocated = city.total_allocation || 0;
+        const totalPhysicalServed = city.total_physical || 0;
+        const totalUtilized = city.total_utilization || 0;
 
         const totalRowTarget = [
           { text: 'Total', options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
@@ -178,13 +199,19 @@ export const generatePptReport = (provinces, programs, selectedYear, selectedQua
           { text: totalAllocated.toLocaleString(), options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
         ];
 
+        const totalRowUtilization = [
+          { text: 'Total', options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
+          { text: totalPhysicalServed.toString(), options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
+          { text: totalUtilized.toLocaleString(), options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
+        ];
+
+        // Add the table to the slide
         const targetTableHeader = [
           { text: 'Program', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
           { text: 'Physical Target', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
           { text: 'Fund Allocated (Php)', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
         ];
 
-        // Add the table to the slide
         cityTargetSlide.addTable([targetTableHeader, ...targetTableData, totalRowTarget], {
           x: 1.0,
           y: 1.5,
@@ -196,13 +223,11 @@ export const generatePptReport = (provinces, programs, selectedYear, selectedQua
           fontFace: 'Arial',
         });
 
-        // Physical Served and Fund Utilized table for each city
-        const totalServed = city.total_physical || 0;
-        const totalUtilized = city.total_utilization || 0;
-
+        // Slide for Physical Served and Fund Utilized for each city
         const cityUtilizationSlide = pptx.addSlide();
         cityUtilizationSlide.background = { path: `${window.location.origin}/ppd-images/ppt-table.png` };
 
+        // Add city/municipality and province text
         cityUtilizationSlide.addText(`${city.col_citymuni.toUpperCase()}, ${province.col_province.toUpperCase()}`, {
           x: 0.5,
           y: 0.5,
@@ -214,6 +239,7 @@ export const generatePptReport = (provinces, programs, selectedYear, selectedQua
           align: 'center',
         });
 
+        // Add "SUMMARY PER PROGRAM" text
         cityUtilizationSlide.addText('SUMMARY PER PROGRAM', {
           x: 0.5,
           y: 1.0,
@@ -224,25 +250,6 @@ export const generatePptReport = (provinces, programs, selectedYear, selectedQua
           fontFace: 'Arial',
           align: 'center',
         });
-
-        const utilizationTableData = programs.map((program, index) => {
-          const fillColor = index % 2 === 0 ? 'BDE0FE' : 'DDEFFA';
-          const cityProgram = cityPrograms.find(p => p.program_id === program.program_id) || {};
-          const served = cityProgram.total_physical || 0;
-          const utilized = cityProgram.total_utilization || 0;
-
-          return [
-            { text: program.program_name, options: { fontSize: 10, bold: true, align: 'center', fontFace: 'Arial', fill: fillColor } },
-            { text: served.toString(), options: { fontSize: 10, align: 'center', fontFace: 'Arial', fill: fillColor } },
-            { text: utilized.toLocaleString(), options: { fontSize: 10, align: 'center', fontFace: 'Arial', fill: fillColor } },
-          ];
-        });
-
-        const totalRowUtilization = [
-          { text: 'Total', options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
-          { text: totalServed.toString(), options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
-          { text: totalUtilized.toLocaleString(), options: { bold: true, fontSize: 10, align: 'center', fontFace: 'Arial', fill: 'FFD700' } },
-        ];
 
         const utilizationTableHeader = [
           { text: 'Program', options: { bold: true, fontSize: 12, align: 'center', color: 'FFFFFF', fill: '0070C0', fontFace: 'Arial' } },
@@ -263,7 +270,7 @@ export const generatePptReport = (provinces, programs, selectedYear, selectedQua
       });
     });
 
-    // Last Slide: Summary of all Cities in the Province (Target and Allocation)
+    // Summary per City/Municipality Slide
     const summarySlide1 = pptx.addSlide();
     summarySlide1.background = { path: `${window.location.origin}/ppd-images/ppt-table.png` };
 
@@ -329,7 +336,7 @@ export const generatePptReport = (provinces, programs, selectedYear, selectedQua
       fill: { color: 'FFFFFF' }
     });
 
-    // Similar for utilization summary
+    // Summary of Utilization per City/Municipality Slide
     const summarySlide2 = pptx.addSlide();
     summarySlide2.background = { path: `${window.location.origin}/ppd-images/ppt-table.png` };
 
@@ -396,7 +403,15 @@ export const generatePptReport = (provinces, programs, selectedYear, selectedQua
     });
   });
 
+   // Add a last slide saying "THANK YOU" with the background of the first slide
+   const thankYouSlide = pptx.addSlide();
+   thankYouSlide.background = { path: `${window.location.origin}/ppd-images/ppt-bg.png` };
+   thankYouSlide.addText('THANK YOU', {
+    x: '-10%', y: '52%', w: '100%', fontSize: 36, bold: true, color: '00072D', fontFace: 'Arial', align: 'center' 
+   });
+ 
+
   // Save the PowerPoint file with the province name in the file name
-  const fileName = `${provinceName}_Brief_Report_By_Area.pptx`;
+  const fileName = `${provinceName}_Brief_Report_By_Area_${selectedYear}_${selectedQuarter}.pptx`;
   pptx.writeFile({ fileName });
 };

@@ -4,10 +4,15 @@ import { defineProps } from 'vue';
 import Layout from '../../Layouts/admin-layout.vue';
 import { generatePptReport } from './pptformat';
 import { generateProgramPpt } from './pptprogram';
+import { usePage, router } from '@inertiajs/vue3';
 
 // State for the selected province and program
 const selectedProvince = ref('all'); 
-const selectedProgram = ref(''); 
+
+const props = defineProps({
+  provinces: Array, // provinces with their associated districts and cities/municipalities
+  programs: Array, // Array for programs data
+});
 
 
 // Function to generate province-based PPT report with unified year and quarter filters
@@ -132,10 +137,6 @@ const getOrdinal = (number) => {
   return `${number}th`; // For any other number (4th, 5th, etc.)
 };
 
-const props = defineProps({
-  provinces: Array, // provinces with their associated districts and cities/municipalities
-  programs: Array, // Array for programs data
-});
 
 // State to switch between views
 const activeView = ref('provinces');
@@ -180,6 +181,11 @@ const toDate = ref(''); // To date input
 // Filtered Provinces year, quarter, and Selected Program
 const filteredProvinces = computed(() => {
   let filtered = sortedProvinces.value;
+
+// Province filter
+if (selectedProvince.value && selectedProvince.value !== 'all') {
+    filtered = filtered.filter(province => province.psgc === selectedProvince.value.psgc);
+  }
 
   // Filter by search query (province name)
   if (searchQuery.value) {
@@ -240,14 +246,41 @@ const filteredProvinces = computed(() => {
   return filtered;
 });
 
+const selectedProgram = ref('all'); 
 
-// Filtered Programs based on selected program
+// Filtered Programs based on selectedProgram and search query
+/// Filtered Programs based on selectedProgram
 const filteredPrograms = computed(() => {
-  if (!selectedProgram.value) {
-    return props.programs; // Show all programs if none is selected
+  if (activeView.value !== 'programs') return [];
+  
+  let filtered = [...props.programs];
+  
+  // Filter by selected program if a specific program is chosen
+  if (selectedProgram.value && selectedProgram.value !== 'all') {
+    filtered = filtered.filter(program => program.program_id === selectedProgram.value.program_id);
   }
-  return props.programs.filter(program => program.id === selectedProgram.value.id); // Filter based on selected program's ID
+
+  // Filter by search query (program name)
+  if (searchQuery.value) {
+    filtered = filtered.filter(program =>
+      program.program_name.toLowerCase().includes(searchQuery.value.toLowerCase())
+    );
+  }
+
+  // Filter by date range
+  if (fromDate.value && toDate.value) {
+    const from = new Date(fromDate.value);
+    const to = new Date(toDate.value);
+
+    filtered = filtered.filter(program => {
+      const programDate = new Date(program.date);
+      return programDate >= from && programDate <= to;
+    });
+  }
+
+  return filtered;
 });
+
 
 const isSidebarExpanded = ref(false);
 
@@ -264,26 +297,23 @@ const selectedQuarter = ref('all');
 const years = [2022, 2023, 2024, 2025,2026];  
 const quarters = [1, 2, 3, 4];
 
-// Function to reload the page with selected year and quarter for the table filtering
+// Update the applyFilter function
 const applyFilter = () => {
   const yearParam = selectedYear.value !== 'all' ? `year=${selectedYear.value}` : '';
   const quarterParam = selectedQuarter.value !== 'all' ? `quarter=${selectedQuarter.value}` : '';
   const programParam = selectedProgram.value && selectedProgram.value !== 'all' 
-    ? `program=${selectedProgram.value.id}` 
+    ? `program=${selectedProgram.value.program_id}` 
     : '';
 
-
-  // Build query string
   const queryParams = [yearParam, quarterParam, programParam]
     .filter(Boolean)
     .join('&');
 
-  // Reload the page with the new parameters
   const url = queryParams ? `?${queryParams}` : window.location.pathname;
   window.location.href = url;
 };
 
-// Function to parse URL query parameters and set the selected year and quarter for the table
+// Update the getQueryParams function
 const getQueryParams = () => {
   const params = new URLSearchParams(window.location.search);
   const year = params.get('year') || 'all';
@@ -293,10 +323,9 @@ const getQueryParams = () => {
   selectedYear.value = year;
   selectedQuarter.value = quarter;
 
-  // Make sure props.programs exists and has items before searching
+  // Update program selection
   if (program !== 'all' && props.programs && props.programs.length > 0) {
-    const programObj = props.programs.find(p => p.id && p.id.toString() === program);
-    
+    const programObj = props.programs.find(p => p.program_id && p.program_id.toString() === program);
     if (programObj) {
       selectedProgram.value = programObj;
     }
@@ -362,23 +391,6 @@ const closeModal = () => {
         </select>
       </div>
 
-      <!-- Program Selection with Search Button 
-      <div class="flex gap-2 w-full sm:w-auto">
-        <select 
-          v-model="selectedProgram" 
-          class="w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        >
-          <option value="" disabled>Select Program</option>
-          <option value="all">All Programs</option>
-          <option 
-            v-for="program in programs" 
-            :key="program.id" 
-            :value="program"
-          >
-            {{ program.program_name }}
-          </option>
-        </select>-->
-
         <!-- Search Button -->
         <button
           @click="applyFilter"
@@ -427,17 +439,6 @@ const closeModal = () => {
         <div class="bg-white p-6 rounded-md shadow-lg w-full max-w-lg">
           <h2 class="text-xl text-center font-bold mb-4">Download Report</h2>
 
-          <!-- Modal Year Selection 
-          <select v-model="selectedYear" class="px-4 py-2 mb-4 border rounded-md w-full">
-            <option value="all">All Years</option>
-            <option v-for="year in years" :value="year" :key="year">{{ year }}</option>
-          </select>
-
-           Modal Quarter Selection 
-          <select v-model="selectedQuarter" class="px-4 py-2 mb-4 border rounded-md w-full">
-            <option value="all">All Quarters</option>
-            <option v-for="quarter in quarters" :value="quarter" :key="quarter">Quarter {{ quarter }}</option>
-          </select>-->
 
              <!-- Province Selection Dropdown -->
              <select v-model="selectedProvince" class="px-4 py-2 mb-4 border border-gray-300 rounded-md w-full">
@@ -468,6 +469,33 @@ const closeModal = () => {
       </div>
     </div>
     </div>
+
+    <!-- Province Filter for Province View -->
+    <div v-if="activeView === 'provinces'" class="flex justify-between mb-4 space-x-4">
+        <select
+          v-model="selectedProvince"
+          class="w-full sm:w-64 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option value="all">All Provinces</option>
+          <option v-for="province in sortedProvinces" :key="province.psgc" :value="province">
+            {{ province.col_province }}
+          </option>
+        </select> 
+      </div>
+
+     <!-- Program Filter for Program View -->
+     <div v-if="activeView === 'programs'" class="flex justify-between mb-4 space-x-4">
+        <select
+          v-model="selectedProgram"
+          class="w-full sm:w-64 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option value="all">All Programs</option>
+          <option v-for="program in props.programs" :key="program.id" :value="program">
+            {{ program.program_name }}
+          </option>
+        </select>
+        </div>
+
 
         <!-- Tabs for switching views -->
         <div class="flex space-x-4 border-b border-gray-200 mb-4">

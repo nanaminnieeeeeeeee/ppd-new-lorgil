@@ -160,37 +160,48 @@ onMounted(() => {
          />
        </div>
 
-       <!-- Admin Logs Table -->
-       <div class="overflow-x-auto">
-         <table class="min-w-full bg-white rounded-lg divide-y divide-gray-200 shadow-lg">
-           <thead class="bg-blue-100 text-left">
-             <tr>
-               <th class="w-1/12 px-6 py-3 text-xs font-bold text-gray-600 uppercase tracking-wider">Date</th>
-               <th class="w-1/6 px-6 py-3 text-xs font-bold text-gray-600 uppercase tracking-wider">User</th>
-               <th class="w-4/6 px-6 py-3 text-xs font-bold text-gray-600 uppercase tracking-wider">Description</th>
-             </tr>
-           </thead>
-           <tbody class="divide-y divide-gray-200">
-             <tr v-for="log in paginatedLogs" :key="log.id" class="hover:bg-blue-50 transition-colors duration-200">
-              <td class="w-1/12 px-6 py-3 text-gray-800 font-semibold">
-  {{ new Date(log.created_at).toLocaleString() }}
-</td>
-               <td class="w-1/6 px-6 py-3 text-gray-800 whitespace-nowrap overflow-hidden text-ellipsis">{{ log.user.first_name }} {{ log.user.middle_name }} {{ log.user.last_name }} {{ log.user.suffix }}</td>
-               <td class="w-4/6 px-6 py-3 text-gray-800">
-      <span v-if="log.action === 'role_change'">
-        {{ log.user.first_name }} {{ log.user.middle_name }} {{ log.user.last_name }}'s role changed from 
-        {{ log.previous_value === '0' ? 'User' : 'Admin' }} 
-        to 
-        {{ log.new_value === '0' ? 'User' : 'Admin' }}
-      </span>
-      <span v-else>
-        {{ log.action }}: {{ log.previous_value }} -> {{ log.new_value }}
-      </span>
-    </td>
-             </tr>
-           </tbody>
-         </table>
-       </div>
+      <!-- Admin Logs Table -->
+<div class="overflow-x-auto">
+  <table class="min-w-full bg-white rounded-lg divide-y divide-gray-200 shadow-lg">
+    <thead class="bg-blue-100 text-left">
+      <tr>
+        <th class="w-1/12 px-6 py-3 text-xs font-bold text-gray-600 uppercase tracking-wider">Date</th>
+        <th class="w-1/6 px-6 py-3 text-xs font-bold text-gray-600 uppercase tracking-wider">User</th>
+        <th class="w-4/6 px-6 py-3 text-xs font-bold text-gray-600 uppercase tracking-wider">Description</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-200">
+      <template v-if="paginatedLogs.length">
+        <tr v-for="log in paginatedLogs" :key="log.id" class="hover:bg-blue-50 transition-colors duration-200">
+          <td class="w-1/12 px-6 py-3 text-gray-800 font-semibold">
+            {{ new Date(log.created_at).toLocaleString() }}
+          </td>
+          <td class="w-1/6 px-6 py-3 text-gray-800 whitespace-nowrap overflow-hidden text-ellipsis">
+            {{ log.user.first_name }} {{ log.user.middle_name }} {{ log.user.last_name }} {{ log.user.suffix }}
+          </td>
+          <td class="w-4/6 px-6 py-3 text-gray-800">
+            <span v-if="log.action === 'role_change'">
+              {{ log.user.first_name }} {{ log.user.middle_name }} {{ log.user.last_name }}'s role changed from 
+              {{ log.previous_value === '0' ? 'User' : 'Admin' }} 
+              to 
+              {{ log.new_value === '0' ? 'User' : 'Admin' }}
+            </span>
+            <span v-else>
+              {{ log.action }}: {{ log.previous_value }} -> {{ log.new_value }}
+            </span>
+          </td>
+        </tr>
+      </template>
+      <template v-else>
+        <tr>
+          <td colspan="4" class="px-6 py-3 text-gray-500 text-center">No logs found for the selected date</td>
+        </tr>
+      </template>
+    </tbody>
+  </table>
+</div>
+
+       
 
        <!-- Pagination controls for admin logs -->
        <div class="mt-2 flex justify-center space-x-4 items-center">
@@ -254,10 +265,12 @@ onMounted(() => {
 </td>           
                <td class="w-2/6 px-6 py-3 text-gray-800">{{ log.program ? log.program.name : 'Unknown Program' }}</td> 
                <td class="w-3/12 px-6 py-3 text-gray-800">{{ log.user.first_name }} {{ log.user.middle_name }} {{ log.user.last_name }} {{ log.user.suffix }} </td>             
-               <td class="w-4/12 px-4 py-3 text-gray-800">{{ log.action }} {{ log.type }} for
-                {{ log.allocation?.citymuni?.col_citymuni || log.utilization?.citymuni?.col_citymuni }}, 
-                {{ log.allocation?.province?.col_province || log.utilization?.province?.col_province }}
-              </td>
+               <td class="w-4/12 px-4 py-3 text-gray-800">
+  {{ log.action }} {{ log.type }} for
+  {{ log.type === 'allocation' ? log.allocation?.citymuni?.col_citymuni : log.utilization?.citymuni?.col_citymuni }},
+  {{ log.type === 'allocation' ? log.allocation?.province?.col_province : log.utilization?.province?.col_province }}
+</td>
+
              </tr>
            </template>
            <template v-else>

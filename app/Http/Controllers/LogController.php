@@ -30,7 +30,7 @@ class LogController extends Controller
             'utilization.province:psgc,col_province', 
             'utilization.citymuni:psgc,col_citymuni', 
         ])
-        ->select('id', 'user_id', 'program', 'action','type', 'record_id', 'created_at') 
+        ->select('id', 'user_id', 'program', 'action', 'type', 'record_id', 'created_at') 
         ->get();
 
         // Pass both admin logs and client logs to the Vue component

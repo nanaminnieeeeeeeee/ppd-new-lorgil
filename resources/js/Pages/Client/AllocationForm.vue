@@ -87,7 +87,7 @@ watch(() => form.province, async (newProvince) => {
   if (newProvince) {
     const selectedProvince = provinces.value.find(province => province.col_province === newProvince);
     if (selectedProvince) {
-      await fetchCities(selectedProvince.psgc); // Fetch cities based on selected province
+      await fetchCities(selectedProvince.psgc); // Fetch cities based on selected province PSGC code
     }
   }
 });
@@ -129,15 +129,15 @@ watch(() => props.editingItem, async (newItem) => {
       }
     } else {
       // For other provinces, match the city PSGC with the city_municipality in newItem
-      const matchedCity = fetchedCities.find(city => String(city.psgc).trim() === newItemCityMunicipalityPSGC);
-
+      const matchedCity = cities.value.find(city => String(city.psgc).trim() === newItemCityMunicipalityPSGC);
+      
       if (matchedCity) {
-        form.city_municipality = matchedCity.col_citymuni; // Match by PSGC
-        console.log('Matched City:', matchedCity);
-      } else {
-        console.warn(`No city matched for PSGC: ${newItemCityMunicipalityPSGC}. Available cities:`, fetchedCities);
-        form.city_municipality = ''; // Reset if no match found
-      }
+      form.city_municipality = matchedCity.col_citymuni; // Match by PSGC
+      console.log('Matched City:', matchedCity);
+    } else {
+      console.warn(`No city matched for PSGC: ${newItemCityMunicipalityPSGC}. Available cities:`, fetchedCities);
+      form.city_municipality = ''; // Reset if no match found
+    }
     }
 
     console.log('Pre-filled City/Municipality:', form.city_municipality);

@@ -70,25 +70,20 @@ class ReportsController extends Controller
             return back()->withErrors(['program' => 'You cannot submit a utilization for a restricted program.'])->withInput();
         }
     
-        // Fetch the PSGC codes for province and city_municipality based on names
-        $province = Province::where('col_province', $request->province)->first();
-        $city_municipality = CityMuni::where('col_citymuni', $request->city_municipality)->first();
-    
-        if (!$province || !$city_municipality) {
-            return back()->withErrors(['location' => 'Invalid province or city/municipality selected.'])->withInput();
-        }
-    
-        // Log the PSGC codes for debugging purposes
-        \Log::info('Province PSGC:', ['psgc' => $province->psgc]);
-        \Log::info('City Municipality PSGC:', ['psgc' => $city_municipality->psgc]);
-
-        // Fetch the PSGC codes for province and city_municipality
+         // Fetch the PSGC codes for province and city_municipality based on names
     $province = Province::where('col_province', $request->province)->first();
-    $city_municipality = CityMuni::where('col_citymuni', $request->city_municipality)->first();
+    $city_municipality = CityMuni::where('col_citymuni', $request->city_municipality)
+        ->where('province_psgc', $province->psgc) // Ensure the city is linked to the correct province
+        ->first();
 
     if (!$province || !$city_municipality) {
         return back()->withErrors(['location' => 'Invalid province or city/municipality selected.'])->withInput();
     }
+    
+    
+        // Log the PSGC codes for debugging purposes
+        \Log::info('Province PSGC:', ['psgc' => $province->psgc]);
+        \Log::info('City Municipality PSGC:', ['psgc' => $city_municipality->psgc]);
 
     // Fetch the allocation for the given province, city, and program
     $allocation = Allocation::where('province', $province->psgc)
@@ -108,16 +103,21 @@ class ReportsController extends Controller
 
     $remainingAllocation = $allocation->fund_allocation - $totalUtilized;
     
-        // Validate the incoming request and check if fund utilized exceeds the allocation
-    $validatedData = $request->validate([
-        'province' => 'required|string|max:255',
-        'city_municipality' => 'required|string|max:255',
-        'program' => 'required|string|max:100',
-        'physical' => 'required|integer|min:0',
-        'fund_utilized' => 'required|numeric|min:0|max:' . $remainingAllocation,
-    ], [
-        'fund_utilized.max' => 'The fund utilized cannot exceed the remaining allocated amount of ' . $remainingAllocation,
-    ]);
+      // Validate the incoming request
+    try {
+        $validatedData = $request->validate([
+            'province' => 'required|string|max:255',
+            'city_municipality' => 'required|string|max:255',
+            'program' => 'required|string|max:100',
+            'physical' => 'required|integer|min:0',
+            'fund_utilized' => 'required|numeric|min:0|max:' . $remainingAllocation,
+        ], [
+            'fund_utilized.max' => 'The fund utilized cannot exceed the remaining allocated amount of ' . $remainingAllocation,
+        ]);
+    } catch (ValidationException $e) {
+        \Log::error('Validation failed:', ['errors' => $e->errors()]);
+        return back()->withErrors($e->errors())->withInput();
+    }
     
         // Override the province and city names with the PSGC codes
         $validatedData['province'] = $province->psgc;
@@ -158,17 +158,19 @@ class ReportsController extends Controller
             return back()->withErrors(['program' => 'You cannot update a utilization for a restricted program.'])->withInput();
         }
     
-        // Fetch the PSGC codes for province and city_municipality based on names
-        $province = Province::where('col_province', $request->province)->first();
-        $city_municipality = CityMuni::where('col_citymuni', $request->city_municipality)->first();
-    
-        if (!$province || !$city_municipality) {
-            \Log::error('Invalid location selection:', [
-                'province' => $request->province,
-                'city_municipality' => $request->city_municipality
-            ]);
-            return back()->withErrors(['location' => 'Invalid province or city/municipality selected.'])->withInput();
-        }
+         // Fetch the PSGC codes for province and city_municipality based on names
+    $province = Province::where('col_province', $request->province)->first();
+    $city_municipality = CityMuni::where('col_citymuni', $request->city_municipality)
+        ->where('province_psgc', $province->psgc) // Ensure the city is linked to the correct province
+        ->first();
+
+    if (!$province || !$city_municipality) {
+        \Log::error('Invalid location selection:', [
+            'province' => $request->province,
+            'city_municipality' => $request->city_municipality
+        ]);
+        return back()->withErrors(['location' => 'Invalid province or city/municipality selected.'])->withInput();
+    }
     
         // Validate the request data
         $validatedData = $request->validate([

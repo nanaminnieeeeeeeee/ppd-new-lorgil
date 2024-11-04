@@ -13,8 +13,8 @@ class ReportController extends Controller
     public function index(Request $request)
     {
         // Fetch selected year, quarter, and program from the request, default to 'all' if not provided
-        $selectedYear = $request->input('year', 'all'); // Default to 'all'
-        $selectedQuarter = $request->input('quarter', 'all'); // Default to 'all'
+        $selectedYear = $request->input('year', 'all');
+        $selectedQuarter = $request->input('quarter', 'all');
 
         // Available years for the filter (e.g., last 5 years including the current year)
         $availableYears = range(date('Y'), date('Y') - 5);
@@ -27,7 +27,6 @@ class ReportController extends Controller
 
         // Fetch all provinces along with their associated city municipalities, allocations, and utilizations
         $provinces = Province::with(['citymuni.allocations' => function ($query) use ($selectedYear, $selectedQuarter) {
-            // Apply filters based on the year, quarter, and program
             if ($selectedYear !== 'all') {
                 $query->whereYear('created_at', $selectedYear);
             }
@@ -35,7 +34,6 @@ class ReportController extends Controller
                 $query->where(DB::raw('QUARTER(created_at)'), $selectedQuarter);
             }
         }, 'citymuni.utilizations' => function ($query) use ($selectedYear, $selectedQuarter) {
-            // Apply filters based on the year, quarter, and program
             if ($selectedYear !== 'all') {
                 $query->whereYear('created_at', $selectedYear);
             }
@@ -70,91 +68,79 @@ class ReportController extends Controller
                             $totalPhysical = $city->utilizations->sum('physical');
 
                             $programsByCity = DB::table('programs')
-                            ->leftJoin(DB::raw("
-                                (SELECT program, city_municipality, SUM(target) as total_target, SUM(fund_allocation) as total_allocation
-                                 FROM allocations
-                                 WHERE city_municipality = ?
-                                 " . ($selectedYear !== 'all' ? "AND YEAR(created_at) = ?" : '') . "
-                                 " . ($selectedQuarter !== 'all' ? "AND QUARTER(created_at) = ?" : '') . "
-                                 GROUP BY program, city_municipality) as alloc
-                            "), 'programs.id', '=', 'alloc.program')
-                        
-                            ->leftJoin(DB::raw("
-                                (SELECT program, city_municipality, SUM(physical) as total_physical, SUM(fund_utilized) as total_utilization
-                                 FROM utilizations
-                                 WHERE city_municipality = ?
-                                 " . ($selectedYear !== 'all' ? "AND YEAR(created_at) = ?" : '') . "
-                                 " . ($selectedQuarter !== 'all' ? "AND QUARTER(created_at) = ?" : '') . "
-                                 GROUP BY program, city_municipality) as util
-                            "), 'programs.id', '=', 'util.program')
-                        
-                            ->select(
-                                'programs.id as program_id',
-                                'programs.name as program_name',
-                                'programs.logo as program_logo',
-                                DB::raw('COALESCE(alloc.total_target, 0) as total_target'),
-                                DB::raw('COALESCE(util.total_physical, 0) as total_physical'),
-                                DB::raw('COALESCE(alloc.total_allocation, 0) as total_allocation'),
-                                DB::raw('COALESCE(util.total_utilization, 0) as total_utilization')
-                            )
-                            ->groupBy(
-                                'programs.id', 
-                                'programs.name', 
-                                'programs.logo', 
-                                'alloc.total_target', 
-                                'util.total_physical', 
-                                'alloc.total_allocation', 
-                                'util.total_utilization'
-                            )
-                            ->setBindings(array_merge(
-                                [$city->psgc], // Binding for city_municipality in the allocations subquery
-                                ($selectedYear !== 'all' ? [$selectedYear] : []), // Conditionally add year if selected for allocations
-                                ($selectedQuarter !== 'all' ? [$selectedQuarter] : []), // Conditionally add quarter if selected for allocations
-                                [$city->psgc], // Binding for city_municipality in the utilizations subquery
-                                ($selectedYear !== 'all' ? [$selectedYear] : []), // Conditionally add year for utilizations subquery
-                                ($selectedQuarter !== 'all' ? [$selectedQuarter] : []) // Conditionally add quarter for utilizations subquery
-                            ))
-                            ->get()
-                            ->map(function ($program) {
-                                return [
-                                    'program_id' => $program->program_id,
-                                    'program_name' => $program->program_name,
-                                    'program_logo' => $program->program_logo,
-                                    'total_target' => $program->total_target,
-                                    'total_physical' => $program->total_physical,
-                                    'total_allocation' => $program->total_allocation,
-                                    'total_utilization' => $program->total_utilization,
-                                ];
-                            });
-                        
-// Return data structure
-return [
-    'psgc' => $city->psgc,
-    'col_citymuni' => $city->col_citymuni,
-    'total_allocation' => $totalAllocation,
-    'total_utilization' => $totalUtilization,
-    'total_target' => $totalTarget,
-    'total_physical' => $totalPhysical,
-    'programs' => $programsByCity,
-];
+                                ->leftJoin(DB::raw("(SELECT program, city_municipality, SUM(target) as total_target, SUM(fund_allocation) as total_allocation
+                                                     FROM allocations
+                                                     WHERE city_municipality = ?
+                                                     " . ($selectedYear !== 'all' ? "AND YEAR(created_at) = ?" : '') . "
+                                                     " . ($selectedQuarter !== 'all' ? "AND QUARTER(created_at) = ?" : '') . "
+                                                     GROUP BY program, city_municipality) as alloc"), 'programs.id', '=', 'alloc.program')
+                                ->leftJoin(DB::raw("(SELECT program, city_municipality, SUM(physical) as total_physical, SUM(fund_utilized) as total_utilization
+                                                     FROM utilizations
+                                                     WHERE city_municipality = ?
+                                                     " . ($selectedYear !== 'all' ? "AND YEAR(created_at) = ?" : '') . "
+                                                     " . ($selectedQuarter !== 'all' ? "AND QUARTER(created_at) = ?" : '') . "
+                                                     GROUP BY program, city_municipality) as util"), 'programs.id', '=', 'util.program')
+                                ->select(
+                                    'programs.id as program_id',
+                                    'programs.name as program_name',
+                                    'programs.logo as program_logo',
+                                    DB::raw('COALESCE(alloc.total_target, 0) as total_target'),
+                                    DB::raw('COALESCE(util.total_physical, 0) as total_physical'),
+                                    DB::raw('COALESCE(alloc.total_allocation, 0) as total_allocation'),
+                                    DB::raw('COALESCE(util.total_utilization, 0) as total_utilization')
+                                )
+                                ->setBindings(array_merge(
+                                    [$city->psgc],
+                                    ($selectedYear !== 'all' ? [$selectedYear] : []),
+                                    ($selectedQuarter !== 'all' ? [$selectedQuarter] : []),
+                                    [$city->psgc],
+                                    ($selectedYear !== 'all' ? [$selectedYear] : []),
+                                    ($selectedQuarter !== 'all' ? [$selectedQuarter] : [])
+                                ))
+                                ->get()
+                                ->map(function ($program) {
+                                    return [
+                                        'program_id' => $program->program_id,
+                                        'program_name' => $program->program_name,
+                                        'program_logo' => $program->program_logo,
+                                        'total_target' => $program->total_target,
+                                        'total_physical' => $program->total_physical,
+                                        'total_allocation' => $program->total_allocation,
+                                        'total_utilization' => $program->total_utilization,
+                                    ];
+                                });
 
-                        
+                            return [
+                                'psgc' => $city->psgc,
+                                'col_citymuni' => $city->col_citymuni,
+                                'total_allocation' => $totalAllocation,
+                                'total_utilization' => $totalUtilization,
+                                'total_target' => $totalTarget,
+                                'total_physical' => $totalPhysical,
+                                'programs' => $programsByCity,
+                            ];
                         }),
                     ]];
                 }),
             ];
         });
 
-        // Fetch all programs data for the dashboard
+        // Fetch all programs data for the dashboard with filtering based on selectedYear and selectedQuarter
         $programs = DB::table('programs')
-            // Calculate allocation sums first
             ->leftJoin(DB::raw("(SELECT program, SUM(target) as total_target, SUM(fund_allocation) as total_allocation
-                                FROM allocations
-                                GROUP BY program) as alloc"), 'programs.id', '=', 'alloc.program')
-            // Calculate utilization sums separately
+                                 FROM allocations
+                                 " . (($selectedYear !== 'all' || $selectedQuarter !== 'all') ? "WHERE " : "") . "
+                                 " . ($selectedYear !== 'all' ? "YEAR(created_at) = $selectedYear" : "") . "
+                                 " . ($selectedYear !== 'all' && $selectedQuarter !== 'all' ? " AND " : "") . "
+                                 " . ($selectedQuarter !== 'all' ? "QUARTER(created_at) = $selectedQuarter" : "") . "
+                                 GROUP BY program) as alloc"), 'programs.id', '=', 'alloc.program')
             ->leftJoin(DB::raw("(SELECT program, SUM(physical) as total_physical, SUM(fund_utilized) as total_utilization
-                                FROM utilizations
-                                GROUP BY program) as util"), 'programs.id', '=', 'util.program')
+                                 FROM utilizations
+                                 " . (($selectedYear !== 'all' || $selectedQuarter !== 'all') ? "WHERE " : "") . "
+                                 " . ($selectedYear !== 'all' ? "YEAR(created_at) = $selectedYear" : "") . "
+                                 " . ($selectedYear !== 'all' && $selectedQuarter !== 'all' ? " AND " : "") . "
+                                 " . ($selectedQuarter !== 'all' ? "QUARTER(created_at) = $selectedQuarter" : "") . "
+                                 GROUP BY program) as util"), 'programs.id', '=', 'util.program')
             ->select(
                 'programs.id as program_id',
                 'programs.name as program_name',

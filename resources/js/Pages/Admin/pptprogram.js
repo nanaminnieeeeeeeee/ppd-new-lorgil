@@ -8,6 +8,20 @@ const getOrdinal = (number) => {
   return `${number}th`; // For any other number (4th, 5th, etc.)
 };
 
+// Function to get the month range for a given quarter
+const getQuarterMonthRange = (quarter, year) => {
+  if (quarter === 'all') {
+    return `Year ${year}`;
+  }
+  const quarters = {
+    1: 'January - March',
+    2: 'April - June',
+    3: 'July - September',
+    4: 'October - December',
+  };
+  return `${quarters[quarter]} ${year}`;
+};
+
 // Function to format and generate PowerPoint report
 export const generateProgramPpt = (provinces, programs, cities, provinceName, selectedYear, selectedQuarter) => {
   const pptx = new PptxGenJS();
@@ -24,9 +38,9 @@ export const generateProgramPpt = (provinces, programs, cities, provinceName, se
       x: '-10%', y: '52%', w: '100%', fontSize: 28, bold: true, color: '00072D', fontFace: 'Arial', align: 'center' 
     });
 
-    const options = { year: 'numeric', month: 'long', day: 'numeric' };
-    const currentDate = new Date().toLocaleDateString(undefined, options);
-    firstSlide.addText(`As of ${currentDate}`, { 
+    // Add selected quarter and year range for the slide
+    const quarterMonthRange = getQuarterMonthRange(selectedQuarter, selectedYear);
+    firstSlide.addText(`As of ${quarterMonthRange}`, { 
       x: '-10%', y: '62%', w: '100%', fontSize: 22, bold: true, color: '0000FF', fontFace: 'Arial', align: 'center' 
     });
 
@@ -99,13 +113,11 @@ export const generateProgramPpt = (provinces, programs, cities, provinceName, se
           const programData = city.programs?.find(prog => prog.program_name === program.program_name) || {
             total_target: 0,
             total_allocation: 0,
-            
           };
 
           const fillColor = index % 2 === 0 ? 'BDE0FE' : 'DDEFFA';
           const target = parseInt(programData.total_target || 0, 10);  // Ensure integer for physical target
           const allocated = parseFloat(programData.total_allocation || 0); // Fund allocated with decimals
-          
 
           totalPhysicalTarget += target;
           totalFundAllocated += allocated;
@@ -113,7 +125,6 @@ export const generateProgramPpt = (provinces, programs, cities, provinceName, se
           // Update the totals for this program
           programAllocations[program.program_name] = (programAllocations[program.program_name] || 0) + allocated;
           programTargets[program.program_name] = (programTargets[program.program_name] || 0) + target;
-          
 
           allocationRows.push([
             { text: city.col_citymuni, options: { fontSize: 10, align: 'left', fontFace: 'Arial', fill: fillColor } },
@@ -314,6 +325,14 @@ utilizationOverviewSlide.addTable([utilizationOverviewHeader, ...utilizationOver
 });
   });
 
-  const fileName = `${provinceName}_Brief_Report_By PPAs}.pptx`;
+   // Add a last slide saying "THANK YOU" with the background of the first slide
+   const thankYouSlide = pptx.addSlide();
+   thankYouSlide.background = { path: `${window.location.origin}/ppd-images/ppt-bg.png` };
+   thankYouSlide.addText('THANK YOU', {
+    x: '-10%', y: '52%', w: '100%', fontSize: 36, bold: true, color: '00072D', fontFace: 'Arial', align: 'center' 
+   });
+ 
+
+  const fileName = `${provinceName}_Brief_Report_By_PPAs_${selectedYear}_${selectedQuarter}.pptx`;
   pptx.writeFile({ fileName });
 };
